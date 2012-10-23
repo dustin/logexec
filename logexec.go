@@ -76,20 +76,24 @@ func main() {
 
 	cmdChan := make(chan error)
 	go func() {
+		defer close(cmdChan)
 		cmdChan <- cmd.Wait()
 	}()
 
-	select {
-	case err = <-cmdChan:
-		if err != nil {
-			logger.Err(fmt.Sprintf("Command failed: %v", err))
-			log.Fatalf("Command failed: %v", err)
-		}
-	case err = <-logErr:
-		if err != nil && err != io.EOF {
-			cmd.Process.Kill()
-			logger.Err(fmt.Sprintf("Error logging command output: %v", err))
-			log.Fatalf("Error logging command output: %v", err)
+	for msgs := 0; msgs < 3; msgs++ {
+		select {
+		case err = <-cmdChan:
+			cmdChan = nil
+			if err != nil {
+				logger.Err(fmt.Sprintf("Command failed: %v", err))
+				log.Fatalf("Command failed: %v", err)
+			}
+		case err = <-logErr:
+			if err != nil && err != io.EOF {
+				cmd.Process.Kill()
+				logger.Err(fmt.Sprintf("Error logging command output: %v", err))
+				log.Fatalf("Error logging command output: %v", err)
+			}
 		}
 	}
 }
