@@ -12,14 +12,24 @@ import (
 	"strings"
 )
 
-var logger *syslog.Writer
+var stdoutLog, stderrLog *syslog.Writer
+
+var facility = logFacility(syslog.LOG_LOCAL0)
+var stdoutLevel = logLevel(syslog.LOG_INFO)
+var stderrLevel = logLevel(syslog.LOG_WARNING)
 
 var maxLogLine = flag.Int("maxline", 8*1024,
 	"maximum amount of text to log in a line")
 
+func init() {
+	flag.Var(&facility, "facility", "logging facility")
+	flag.Var(&stdoutLevel, "stdoutLevel", "log level for stdout")
+	flag.Var(&stderrLevel, "stderrLevel", "log level for stderr")
+}
+
 var logErr = make(chan error)
 
-func logPipe(logFun func(string) error, r io.Reader) {
+func logPipe(w io.Writer, r io.Reader) {
 	br := bufio.NewReader(r)
 	for {
 		l, err := br.ReadString('\n')
@@ -33,7 +43,7 @@ func logPipe(logFun func(string) error, r io.Reader) {
 			l = l[:*maxLogLine]
 		}
 
-		err = logFun(l)
+		_, err = w.Write([]byte(l))
 		if err != nil {
 			logErr <- err
 			return
@@ -50,24 +60,30 @@ func main() {
 	}
 
 	var err error
-	logger, err = syslog.New(syslog.LOG_ERR, *tag)
+	lvl := syslog.Priority(stdoutLevel) | syslog.Priority(facility)
+	stdoutLog, err = syslog.New(lvl, *tag)
 	if err != nil {
-		log.Fatalf("Error initializing syslog: %v", err)
+		log.Fatalf("Error initializing stdout syslog: %v", err)
+	}
+	lvl = syslog.Priority(stderrLevel) | syslog.Priority(facility)
+	stderrLog, err = syslog.New(lvl, *tag)
+	if err != nil {
+		log.Fatalf("Error initializing stderr syslog: %v", err)
 	}
 
 	cmd := exec.Command(flag.Arg(0), flag.Args()[1:]...)
 	cmd.Stdin = os.Stdin
-	infoPipe, err := cmd.StdoutPipe()
+	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("Error initializing stdout pipe: %v", err)
 	}
-	errPipe, err := cmd.StderrPipe()
+	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		log.Fatalf("Error initializing stderr pipe: %v", err)
 	}
 
-	go logPipe(func(s string) error { return logger.Info(s) }, infoPipe)
-	go logPipe(func(s string) error { return logger.Err(s) }, errPipe)
+	go logPipe(stdoutLog, stdoutPipe)
+	go logPipe(stderrLog, stderrPipe)
 
 	err = cmd.Start()
 	if err != nil {
@@ -85,13 +101,13 @@ func main() {
 		case err = <-cmdChan:
 			cmdChan = nil
 			if err != nil {
-				logger.Err(fmt.Sprintf("Command failed: %v", err))
+				fmt.Fprintf(stderrLog, "Command failed: %v", err)
 				log.Fatalf("Command failed: %v", err)
 			}
 		case err = <-logErr:
 			if err != nil && err != io.EOF {
 				cmd.Process.Kill()
-				logger.Err(fmt.Sprintf("Error logging command output: %v", err))
+				fmt.Fprintf(stderrLog, "Error logging command output: %v", err)
 				log.Fatalf("Error logging command output: %v", err)
 			}
 		}
