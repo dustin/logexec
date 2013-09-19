@@ -96,7 +96,7 @@ func main() {
 		cmdChan <- cmd.Wait()
 	}()
 
-	for msgs := 0; msgs < 3; msgs++ {
+	for cmdChan != nil {
 		select {
 		case err = <-cmdChan:
 			cmdChan = nil
