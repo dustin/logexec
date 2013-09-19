@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -33,13 +34,15 @@ var logErr = make(chan error)
 
 var sigs = make(chan os.Signal, 1)
 
+var wg sync.WaitGroup
+
 func logPipe(w io.Writer, r io.Reader) {
+	defer wg.Done()
 	br := bufio.NewReader(r)
 	for {
-		l, err := br.ReadString('\n')
-		if err != nil {
-			logErr <- err
-			return
+		l, rerr := br.ReadString('\n')
+		if rerr != nil {
+			logErr <- rerr
 		}
 
 		l = strings.TrimSpace(l)
@@ -47,9 +50,12 @@ func logPipe(w io.Writer, r io.Reader) {
 			l = l[:*maxLogLine]
 		}
 
-		_, err = w.Write([]byte(l))
-		if err != nil {
-			logErr <- err
+		_, werr := w.Write([]byte(l))
+		if werr != nil {
+			logErr <- werr
+		}
+
+		if !(rerr == nil && werr == nil) {
 			return
 		}
 	}
@@ -89,6 +95,7 @@ func main() {
 		log.Fatalf("Error initializing stderr pipe: %v", err)
 	}
 
+	wg.Add(2)
 	go logPipe(stdoutLog, stdoutPipe)
 	go logPipe(stderrLog, stderrPipe)
 
@@ -103,11 +110,20 @@ func main() {
 		cmdChan <- cmd.Wait()
 	}()
 
-	for cmdChan != nil {
+	// Signal with a channel when the loggers have completed
+	doneChan := make(chan bool)
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	for !(cmdChan == nil && doneChan == nil) {
 		select {
 		case sig := <-sigs:
 			log.Printf("logexec caught signal %v, passing through", sig)
 			cmd.Process.Signal(sig)
+		case <-doneChan:
+			doneChan = nil
 		case err = <-cmdChan:
 			cmdChan = nil
 			if err != nil {
