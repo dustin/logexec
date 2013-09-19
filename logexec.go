@@ -9,7 +9,9 @@ import (
 	"log/syslog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 var stdoutLog, stderrLog *syslog.Writer
@@ -28,6 +30,8 @@ func init() {
 }
 
 var logErr = make(chan error)
+
+var sigs = make(chan os.Signal, 1)
 
 func logPipe(w io.Writer, r io.Reader) {
 	br := bufio.NewReader(r)
@@ -58,6 +62,9 @@ func main() {
 	if flag.NArg() < 1 {
 		log.Fatalf("No command provided")
 	}
+
+	signal.Notify(sigs, syscall.SIGINT,
+		syscall.SIGQUIT, syscall.SIGINFO, syscall.SIGHUP)
 
 	var err error
 	lvl := syslog.Priority(stdoutLevel) | syslog.Priority(facility)
@@ -98,6 +105,9 @@ func main() {
 
 	for cmdChan != nil {
 		select {
+		case sig := <-sigs:
+			log.Printf("logexec caught signal %v, passing through", sig)
+			cmd.Process.Signal(sig)
 		case err = <-cmdChan:
 			cmdChan = nil
 			if err != nil {
