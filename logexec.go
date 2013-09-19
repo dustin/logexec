@@ -33,6 +33,7 @@ func init() {
 var logErr = make(chan error)
 
 var sigs = make(chan os.Signal, 1)
+var passSigs = []os.Signal{syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP}
 
 var wg sync.WaitGroup
 
@@ -69,8 +70,7 @@ func main() {
 		log.Fatalf("No command provided")
 	}
 
-	signal.Notify(sigs, syscall.SIGINT,
-		syscall.SIGQUIT, syscall.SIGINFO, syscall.SIGHUP)
+	signal.Notify(sigs, passSigs...)
 
 	var err error
 	lvl := syslog.Priority(stdoutLevel) | syslog.Priority(facility)
