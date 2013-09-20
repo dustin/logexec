@@ -20,6 +20,7 @@ var stdoutLog, stderrLog *syslog.Writer
 var facility = logFacility(syslog.LOG_LOCAL0)
 var stdoutLevel = logLevel(syslog.LOG_INFO)
 var stderrLevel = logLevel(syslog.LOG_WARNING)
+var tag string
 
 var maxLogLine = flag.Int("maxline", 8*1024,
 	"maximum amount of text to log in a line")
@@ -28,6 +29,8 @@ func init() {
 	flag.Var(&facility, "facility", "logging facility")
 	flag.Var(&stdoutLevel, "stdoutLevel", "log level for stdout")
 	flag.Var(&stderrLevel, "stderrLevel", "log level for stderr")
+	flag.StringVar(&tag, "tag", "logexec", "Tag for all log messages")
+
 }
 
 var logErr = make(chan error)
@@ -62,29 +65,20 @@ func logPipe(w io.Writer, r io.Reader) {
 	}
 }
 
-func main() {
-	tag := flag.String("tag", "logexec", "Tag for all log messages")
-	flag.Parse()
-
-	if flag.NArg() < 1 {
-		log.Fatalf("No command provided")
-	}
-
-	signal.Notify(sigs, passSigs...)
-
+func startCmd(cmdName string, args ...string) (*exec.Cmd, error) {
 	var err error
 	lvl := syslog.Priority(stdoutLevel) | syslog.Priority(facility)
-	stdoutLog, err = syslog.New(lvl, *tag)
+	stdoutLog, err = syslog.New(lvl, tag)
 	if err != nil {
 		log.Fatalf("Error initializing stdout syslog: %v", err)
 	}
 	lvl = syslog.Priority(stderrLevel) | syslog.Priority(facility)
-	stderrLog, err = syslog.New(lvl, *tag)
+	stderrLog, err = syslog.New(lvl, tag)
 	if err != nil {
 		log.Fatalf("Error initializing stderr syslog: %v", err)
 	}
 
-	cmd := exec.Command(flag.Arg(0), flag.Args()[1:]...)
+	cmd := exec.Command(cmdName, args...)
 	cmd.Stdin = os.Stdin
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -99,7 +93,19 @@ func main() {
 	go logPipe(stdoutLog, stdoutPipe)
 	go logPipe(stderrLog, stderrPipe)
 
-	err = cmd.Start()
+	return cmd, cmd.Start()
+}
+
+func main() {
+	flag.Parse()
+
+	if flag.NArg() < 1 {
+		log.Fatalf("No command provided")
+	}
+
+	signal.Notify(sigs, passSigs...)
+
+	cmd, err := startCmd(flag.Arg(0), flag.Args()[1:]...)
 	if err != nil {
 		log.Fatalf("Error starting command: %v", err)
 	}
