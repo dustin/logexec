@@ -112,7 +112,6 @@ func main() {
 
 	cmdChan := make(chan error)
 	go func() {
-		defer close(cmdChan)
 		cmdChan <- cmd.Wait()
 	}()
 
