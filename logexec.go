@@ -36,7 +36,12 @@ func init() {
 var logErr = make(chan error)
 
 var sigs = make(chan os.Signal, 1)
-var passSigs = []os.Signal{syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP}
+var passSigs = []os.Signal{
+	syscall.SIGHUP,
+	syscall.SIGINT,
+	syscall.SIGQUIT,
+	syscall.SIGTERM,
+}
 
 var wg sync.WaitGroup
 
