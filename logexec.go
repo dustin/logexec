@@ -141,7 +141,9 @@ func main() {
 				log.Fatalf("Command failed: %v", err)
 			}
 		case err = <-logErr:
-			if err != nil && err != io.EOF {
+			if err != nil && err != io.EOF &&
+				!strings.Contains(err.Error(), "bad file descriptor") {
+
 				cmd.Process.Kill()
 				fmt.Fprintf(stderrLog, "Error logging command output: %v", err)
 				log.Fatalf("Error logging command output: %v", err)
