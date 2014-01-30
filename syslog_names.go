@@ -5,8 +5,8 @@ import (
 	"log/syslog"
 )
 
-var invalidLevel = errors.New("Invalid log level")
-var invalidFacility = errors.New("Invalid log facility")
+var errInvalidLevel = errors.New("invalid log level")
+var errInvalidFacility = errors.New("invalid log facility")
 
 var facilityStrings = map[syslog.Priority]string{
 	syslog.LOG_KERN:     "kern",
@@ -68,7 +68,7 @@ func (l logFacility) String() string {
 func (l *logFacility) Set(to string) error {
 	v, ok := facilityByName[to]
 	if !ok {
-		return invalidFacility
+		return errInvalidFacility
 	}
 	*l = logFacility(v)
 	return nil
@@ -81,7 +81,7 @@ func (l logLevel) String() string {
 func (l *logLevel) Set(to string) error {
 	v, ok := levelByName[to]
 	if !ok {
-		return invalidLevel
+		return errInvalidLevel
 	}
 	*l = logLevel(v)
 	return nil
