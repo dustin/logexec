@@ -101,6 +101,25 @@ func startCmd(cmdName string, args ...string) (*exec.Cmd, error) {
 	return cmd, cmd.Start()
 }
 
+func getExitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	ose, ok := err.(*exec.ExitError)
+	if !ok {
+		// Unknown error type, default to 1
+		return 1
+	}
+
+	estatus, ok := ose.Sys().(syscall.WaitStatus)
+	if !ok {
+		// Unknown sys type, default to 1
+	}
+
+	return estatus.ExitStatus()
+}
+
 func main() {
 	flag.Parse()
 
@@ -136,9 +155,9 @@ func main() {
 			doneChan = nil
 		case err = <-cmdChan:
 			cmdChan = nil
-			if err != nil {
-				fmt.Fprintf(stderrLog, "Command failed: %v", err)
-				log.Fatalf("Command failed: %v", err)
+			if estatus := getExitStatus(err); estatus != 0 {
+				fmt.Fprintf(stderrLog, "Command return non-zero exit status: %v", estatus)
+				os.Exit(estatus)
 			}
 		case err = <-logErr:
 			if err != nil && err != io.EOF &&
