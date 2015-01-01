@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -47,27 +48,26 @@ var wg sync.WaitGroup
 
 func logPipe(w io.Writer, r io.Reader) {
 	defer wg.Done()
-	br := bufio.NewReader(r)
-	for {
-		l, rerr := br.ReadString('\n')
-		if rerr != nil {
-			logErr <- rerr
-		}
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		l := s.Bytes()
 
-		l = strings.TrimSpace(l)
+		l = bytes.TrimSpace(l)
 		if len(l) > *maxLogLine {
 			l = l[:*maxLogLine]
 		}
 
-		_, werr := w.Write([]byte(l))
+		_, werr := w.Write(l)
 		if werr != nil {
 			logErr <- werr
+			break
 		}
 
-		if !(rerr == nil && werr == nil) {
-			return
-		}
 	}
+	if s.Err() != nil {
+		logErr <- s.Err()
+	}
+
 }
 
 func startCmd(cmdName string, args ...string) (*exec.Cmd, error) {
