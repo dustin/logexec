@@ -49,10 +49,13 @@ var wg sync.WaitGroup
 func logPipe(w io.Writer, r io.Reader) {
 	defer wg.Done()
 	s := bufio.NewScanner(r)
+	defer func() {
+		if err := s.Err(); err != nil {
+			logErr <- err
+		}
+	}()
 	for s.Scan() {
-		l := s.Bytes()
-
-		l = bytes.TrimSpace(l)
+		l := bytes.TrimSpace(s.Bytes())
 		if len(l) > *maxLogLine {
 			l = l[:*maxLogLine]
 		}
@@ -60,14 +63,9 @@ func logPipe(w io.Writer, r io.Reader) {
 		_, werr := w.Write(l)
 		if werr != nil {
 			logErr <- werr
-			break
+			return
 		}
-
 	}
-	if s.Err() != nil {
-		logErr <- s.Err()
-	}
-
 }
 
 func startCmd(cmdName string, args ...string) (*exec.Cmd, error) {
