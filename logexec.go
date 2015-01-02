@@ -16,15 +16,29 @@ import (
 	"syscall"
 )
 
-var stdoutLog, stderrLog *syslog.Writer
+var (
+	stdoutLog, stderrLog *syslog.Writer
 
-var facility = logFacility(syslog.LOG_LOCAL0)
-var stdoutLevel = logLevel(syslog.LOG_INFO)
-var stderrLevel = logLevel(syslog.LOG_WARNING)
-var tag string
+	facility    = logFacility(syslog.LOG_LOCAL0)
+	stdoutLevel = logLevel(syslog.LOG_INFO)
+	stderrLevel = logLevel(syslog.LOG_WARNING)
+	tag         string
 
-var maxLogLine = flag.Int("maxline", 8*1024,
-	"maximum amount of text to log in a line")
+	maxLogLine = flag.Int("maxline", 8*1024,
+		"maximum amount of text to log in a line")
+
+	logErr = make(chan error)
+
+	sigs     = make(chan os.Signal, 1)
+	passSigs = []os.Signal{
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGTERM,
+	}
+
+	wg sync.WaitGroup
+)
 
 func init() {
 	flag.Var(&facility, "facility", "logging facility")
@@ -33,18 +47,6 @@ func init() {
 	flag.StringVar(&tag, "tag", "logexec", "Tag for all log messages")
 
 }
-
-var logErr = make(chan error)
-
-var sigs = make(chan os.Signal, 1)
-var passSigs = []os.Signal{
-	syscall.SIGHUP,
-	syscall.SIGINT,
-	syscall.SIGQUIT,
-	syscall.SIGTERM,
-}
-
-var wg sync.WaitGroup
 
 func logPipe(w io.Writer, r io.Reader) {
 	defer wg.Done()
