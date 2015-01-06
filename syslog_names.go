@@ -31,12 +31,14 @@ var facilityStrings = map[syslog.Priority]string{
 	syslog.LOG_LOCAL7:   "local7",
 }
 
-var facilityByName = map[string]syslog.Priority{}
+var facilityByName = reverseFacilityMap(facilityStrings)
 
-func init() {
-	for k, v := range facilityStrings {
-		facilityByName[v] = k
+func reverseFacilityMap(m map[syslog.Priority]string) map[string]syslog.Priority {
+	rv := map[string]syslog.Priority{}
+	for k, v := range m {
+		rv[v] = k
 	}
+	return rv
 }
 
 var levelStrings = map[syslog.Priority]string{
@@ -50,12 +52,14 @@ var levelStrings = map[syslog.Priority]string{
 	syslog.LOG_DEBUG:   "debug",
 }
 
-var levelByName = map[string]syslog.Priority{}
+var levelByName = reversePriorityMap(levelStrings)
 
-func init() {
-	for k, v := range levelStrings {
-		levelByName[v] = k
+func reversePriorityMap(m map[syslog.Priority]string) map[string]syslog.Priority {
+	rv := map[string]syslog.Priority{}
+	for k, v := range m {
+		rv[v] = k
 	}
+	return rv
 }
 
 type logLevel syslog.Priority
