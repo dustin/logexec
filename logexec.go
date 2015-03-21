@@ -22,6 +22,7 @@ var (
 	facility    = logFacility(syslog.LOG_LOCAL0)
 	stdoutLevel = logLevel(syslog.LOG_INFO)
 	stderrLevel = logLevel(syslog.LOG_WARNING)
+	ignoreSig   = false
 	tag         string
 
 	maxLogLine = flag.Int("maxline", 8*1024,
@@ -44,6 +45,7 @@ func init() {
 	flag.Var(&facility, "facility", "logging facility")
 	flag.Var(&stdoutLevel, "stdoutLevel", "log level for stdout")
 	flag.Var(&stderrLevel, "stderrLevel", "log level for stderr")
+	flag.BoolVar(&ignoreSig, "ignoresig", false, "Do not pass signals on to child process")
 	flag.StringVar(&tag, "tag", "logexec", "Tag for all log messages")
 
 }
@@ -149,8 +151,12 @@ func main() {
 	for !(cmdChan == nil && doneChan == nil) {
 		select {
 		case sig := <-sigs:
-			log.Printf("logexec caught signal %v, passing through", sig)
-			cmd.Process.Signal(sig)
+			if !ignoreSig {
+				log.Printf("logexec caught signal %v, passing through", sig)
+				cmd.Process.Signal(sig)
+			} else {
+				log.Printf("logexec caught signal %v, not passing through", sig)
+			}
 		case <-doneChan:
 			doneChan = nil
 		case err = <-cmdChan:
