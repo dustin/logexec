@@ -45,7 +45,8 @@ func init() {
 	flag.Var(&facility, "facility", "logging facility")
 	flag.Var(&stdoutLevel, "stdoutLevel", "log level for stdout")
 	flag.Var(&stderrLevel, "stderrLevel", "log level for stderr")
-	flag.BoolVar(&ignoreSig, "ignoresig", false, "Do not pass signals on to child process")
+	flag.BoolVar(&ignoreSig, "ignoresig", false,
+		"Do not pass signals on to child process")
 	flag.StringVar(&tag, "tag", "logexec", "Tag for all log messages")
 
 }
@@ -151,12 +152,12 @@ func main() {
 	for !(cmdChan == nil && doneChan == nil) {
 		select {
 		case sig := <-sigs:
-			if !ignoreSig {
-				log.Printf("logexec caught signal %v, passing through", sig)
-				cmd.Process.Signal(sig)
-			} else {
+			if ignoreSig {
 				log.Printf("logexec caught signal %v, not passing through", sig)
+				continue
 			}
+			log.Printf("logexec caught signal %v, passing through", sig)
+			cmd.Process.Signal(sig)
 		case <-doneChan:
 			doneChan = nil
 		case err = <-cmdChan:
